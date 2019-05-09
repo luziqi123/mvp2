@@ -1,31 +1,21 @@
 package cn.longface.vrp;
 
-import android.os.Handler;
-import android.os.Looper;
-import android.os.Message;
+import android.app.Activity;
+import android.content.Context;
 
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-
+/**
+ * 注册表
+ * 管理一个ViewEntry链表 , 管理一个Presenter
+ *
+ */
 public class Registry {
 
-
-    // View链表
-    LinkedHashMap<Class, ViewEntry> mViewList;
-    // Presenter集合
-
-    // 用于更新UI的Handler
-    Handler mUiHandler;
-
-    // 命令实例的对象池 , 在需要回调实例的地方会用到
-    LinkedList<Command> mCommands;
-
-
+    RegistryView mViewRegistry;
+    RegistryLru mLruRegistry;
 
     protected Registry() {
-        mViewList = new LinkedHashMap<>(12);
-        mUiHandler = new UiHandler(Looper.getMainLooper());
-        mCommands = new LinkedList<>();
+        mViewRegistry = new RegistryView();
+        mLruRegistry = new RegistryLru();
     }
     private volatile static Registry instance;
     public static Registry getInstance() {
@@ -42,55 +32,39 @@ public class Registry {
         return instance;
     }
 
-    /**
-     * 需要在View确定显示的时候注册
-     * @param view
-     */
+    /* ---------------------------------- RegistryView ----------------------------------*/
+
     public void registerView(Object view) {
-        mViewList.put(view.getClass(), createViewEntry(view));
+        mViewRegistry.registerView(view);
+    }
+
+    public void unregisterView(Object view) {
+        mViewRegistry.unregisterView(view);
     }
 
     /**
-     * 当View不再使用的时候取消注册
-     * @param view
+     * 一般情况下使用这个方法就可以了
+     * 但在需要频繁操作的地方应该直接使用getView(Class , InstanceCallback) , 他会减少更多的内存分配.
+     * @param callback
+     * @param <T>
      */
-    public void unregisterView(Object view) {
-        mViewList.remove(view.getClass());
+    public <T> void getView(InstanceCallback<T> callback) {
+        getView(callback.getClazz() , callback);
+    }
+    public <T> void getView(Class clazz , InstanceCallback<T> callback) {
+        mViewRegistry.getView(clazz , callback);
     }
 
-    public void getView(Class viewClass , InstanceCallback callback) {
-        ViewEntry viewEntry = mViewList.get(viewClass);
-        if (viewEntry != null) {
-            Message message = mUiHandler.obtainMessage();
-            Command command = new Command();
-            command.instance = viewEntry.view;
-            command.callback = callback;
-            message.obj = command;
-            mUiHandler.sendMessage(message);
-        }
+    public Activity getActivity() {
+        return mViewRegistry.getActivity();
     }
 
-    public void getPresenter(InstanceCallback callback) {
-        // TODO 获取实例
+    public Context getContext() {
+        return mViewRegistry.getContext();
     }
 
-    private ViewEntry createViewEntry(Object view) {
-        return new ViewEntry(view);
-    }
 
-    class UiHandler extends Handler {
-
-        public UiHandler(Looper looper) {
-            super(looper);
-        }
-
-        @Override
-        public void handleMessage(Message msg) {
-            super.handleMessage(msg);
-            Command command = (Command) msg.obj;
-            command.callback.get(command.instance);
-        }
-    }
+    /* ---------------------------------- RegistryLru ----------------------------------*/
 
 
 }
